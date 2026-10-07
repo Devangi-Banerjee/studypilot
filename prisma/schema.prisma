@@ -1,0 +1,124 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+}
+
+enum BlockStatus {
+  PLANNED
+  DONE
+  MISSED
+}
+
+model User {
+  id            String       @id @default(cuid())
+  name          String?
+  email         String?      @unique
+  emailVerified DateTime?
+  image         String?
+  accounts      Account[]
+  sessions      Session[]
+  courses       Course[]
+  tasks         Task[]
+  blocks        StudyBlock[]
+  preference    Preference?
+  createdAt     DateTime     @default(now())
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Course {
+  id     String @id @default(cuid())
+  userId String
+  name   String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tasks  Task[]
+
+  @@unique([userId, name])
+}
+
+model Task {
+  id               String       @id @default(cuid())
+  userId           String
+  courseId         String?
+  title            String
+  notes            String?
+  deadline         DateTime
+  estimatedMinutes Int
+  weight           Int          @default(50)
+  status           TaskStatus   @default(TODO)
+  source           String       @default("manual")
+  createdAt        DateTime     @default(now())
+  user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course           Course?      @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  blocks           StudyBlock[]
+
+  @@index([userId, deadline])
+}
+
+model StudyBlock {
+  id     String      @id @default(cuid())
+  userId String
+  taskId String
+  start  DateTime
+  end    DateTime
+  status BlockStatus @default(PLANNED)
+  user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task   Task        @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([userId, start])
+}
+
+model Preference {
+  id               String @id @default(cuid())
+  userId           String @unique
+  tzOffsetMinutes  Int    @default(330)
+  dayStartHour     Int    @default(8)
+  dayEndHour       Int    @default(22)
+  maxDailyMinutes  Int    @default(360)
+  blockMinutes     Int    @default(50)
+  breakMinutes     Int    @default(10)
+  user             User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
